@@ -115,7 +115,7 @@ int main(void) {
 
   list_new(&list_todos);
   list_new(&list_current);
-  open_conection("../db/Todo.db", &db);
+  open_conection("db/Todo.db", &db);
   get_todos(db, GET_ALL, &list_todos);
   if (list_todos.len)
     copy_todos(&list_todos, &list_current);
@@ -195,6 +195,22 @@ int main(void) {
       editing = !editing;
       clear();
       refresh();
+      echo();
+      nocbreak();
+      char title[128], description[256], completed[2];
+      WINDOW *input_box = create_window_box(4, 258, head_y_max + 1, 1);
+
+      delwin(input_box);
+      // Header
+      box(header, 0, 0);
+      mvwprintw(header, 1, head_x_max / 2 - strlen(title) / 2, "%s", title);
+      mvwprintw(header, 3, head_x_max / 2 - strlen(options) / 2, "%s", options);
+      wrefresh(header);
+      // left_pane
+      // mvwprintw(left_pane, 0, 1, "%s", todos);
+
+      noecho();
+      cbreak();
       break;
     case 'c':
     case 'C':
