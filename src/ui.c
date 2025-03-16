@@ -232,7 +232,7 @@ int main(void) {
   wrefresh(left_pane);
   wrefresh(right_pane);
 
-  do {
+  while (!exit) {
     clear_previous(left_pane);
     mvwprintw(left_pane, 0, 1, "%s", todos);
     int current_y = 1;
@@ -358,8 +358,7 @@ int main(void) {
     default:
       break;
     }
-
-  } while (!exit);
+  }
 
   list_free(&list_todos, free_todo);
   list_free(&list_current, NULL);
