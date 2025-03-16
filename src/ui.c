@@ -1,8 +1,10 @@
 #include "database.h"
+#include <assert.h>
 #include <ncurses.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 WINDOW *create_window_box(int nlines, int ncols, int begin_y, int begin_x) {
   WINDOW *window = newwin(nlines, ncols, begin_y, begin_x);
@@ -103,16 +105,85 @@ void copy_todos_completed(list_t *src, list_t *dest) {
   }
 }
 
-int main(void) {
-  initscr();
+void show_error_msg(WINDOW *dest, char *msg) {
+  wclear(dest);
+  box(dest, 0, 0);
+  mvwprintw(dest, 1, 1, "%s", msg);
+  wrefresh(dest);
+}
 
+void replace_char(char *str, char find, char replace) {
+  for (int i = 0; i < strlen(str); i++) {
+    if (str[i] == find)
+      str[i] = replace;
+  }
+}
+
+void get_n_characters(WINDOW *input_box, char *box_title, char *input, int n,
+                      char *err_msg, int custom_check(char *, void *),
+                      void *argv) {
+  assert(n > 0);
+  int err_value;
+  do {
+    mvwprintw(input_box, 0, 1, "%s", box_title);
+
+    err_value = n > 2 ? mvwgetnstr(input_box, 1, 1, input, n - 2)
+                      : mvwgetnstr(input_box, 1, 1, input, 1);
+    int check = custom_check ? custom_check(input, argv) : 0;
+    if (strlen(input) > n - 1 || strlen(input) < 1 || check) {
+      err_value = ERR;
+      show_error_msg(input_box, err_msg);
+      sleep(2);
+    }
+    wclear(input_box);
+
+    box(input_box, 0, 0);
+  } while (err_value == ERR);
+  replace_char(input, '\n', '\0');
+}
+
+int is_yY_or_Nn(char *str, void *useless) {
+  switch (str[0]) {
+  case 'n':
+  case 'N':
+  case 'y':
+  case 'Y':
+    return 0;
+  default:
+    return 1;
+  }
+}
+
+void get_name(WINDOW *input_box, char *name) {
+  get_n_characters(input_box, "Name: ", name, 128,
+                   "Title must be between 1 and 126 characters.", NULL, NULL);
+}
+void get_description(WINDOW *input_box, char *description) {
+  get_n_characters(input_box, "Description: ", description, 256,
+                   "Description must be between 1 and 254 characters.", NULL,
+                   NULL);
+}
+void get_completed(WINDOW *input_box, char *completed) {
+  get_n_characters(input_box, "Completed (y-Y-n-N): ", completed, 2,
+                   "Description must be 1 character (y-Y-n-N).", *is_yY_or_Nn,
+                   NULL);
+}
+void get_todo_data(WINDOW *input_box, char *name, char *description,
+                   char *completed) {
+  get_name(input_box, name);
+  get_description(input_box, description);
+  get_completed(input_box, completed);
+}
+
+int main(void) {
+  char name[128], description[256], completed[2];
   int y_max, x_max, head_y_max, head_x_max, selected_todo;
-  bool editing, show_completed, exit;
-  editing = show_completed = exit = false;
+  bool show_completed, exit;
+  show_completed = exit = false;
   sqlite3 *db;
   list_t list_todos, list_current;
   int input_key;
-
+  WINDOW *input_box;
   list_new(&list_todos);
   list_new(&list_current);
   open_conection("db/Todo.db", &db);
@@ -124,6 +195,8 @@ int main(void) {
   const char *title = "TODOERMINAL";
   const char *options = "[A]dd [D]elete [E]dit [C]ompleted [Q]uit";
   const char *todos = "TODOs list";
+
+  initscr();
 
   WINDOW *header, *left_pane, *right_pane;
   getmaxyx(stdscr, y_max, x_max);
@@ -163,15 +236,13 @@ int main(void) {
     clear_previous(left_pane);
     mvwprintw(left_pane, 0, 1, "%s", todos);
     int current_y = 1;
-    if (!editing) {
-      for (int i = 0; i < list_current.len; i++) {
-        todo_t *todo = (todo_t *)list_current.array[i];
-        if (i == selected_todo)
-          wattron(left_pane, A_REVERSE);
-        mvwprintw(left_pane, current_y, 1, "%s", todo->Title);
-        wattroff(left_pane, A_REVERSE);
-        current_y++;
-      }
+    for (int i = 0; i < list_current.len; i++) {
+      todo_t *todo = (todo_t *)list_current.array[i];
+      if (i == selected_todo)
+        wattron(left_pane, A_REVERSE);
+      mvwprintw(left_pane, current_y, 1, "%s", todo->Title);
+      wattroff(left_pane, A_REVERSE);
+      current_y++;
     }
 
     wrefresh(right_pane);
@@ -192,37 +263,43 @@ int main(void) {
       break;
     case 'a':
     case 'A':
-      editing = !editing;
       clear();
-      refresh();
       echo();
       nocbreak();
-      char title[128], description[256], completed[2];
-      WINDOW *input_box = create_window_box(4, 258, head_y_max + 1, 1);
+      input_box = create_window_box(4, head_x_max, head_y_max + 1, 1);
+      refresh();
+      get_todo_data(input_box, name, description, completed);
 
+      // Adding todo...
+      // TODO: Change this to add the todo to the db then update the list.
+      add_todo(db, name, description,
+               completed[0] == 'y' || completed[0] == 'Y');
+
+      list_free(&list_todos, free_todo);
+      list_free(&list_current, NULL);
+
+      list_new(&list_todos);
+      list_new(&list_current);
+      get_todos(db, GET_ALL, &list_todos);
+      if (show_completed)
+        copy_todos_completed(&list_todos, &list_current);
+      else
+        copy_todos(&list_todos, &list_current);
+      // ****
+
+      // Destroy input box and clear screen.
       delwin(input_box);
+      clear();
+      refresh();
+
       // Header
       box(header, 0, 0);
       mvwprintw(header, 1, head_x_max / 2 - strlen(title) / 2, "%s", title);
       mvwprintw(header, 3, head_x_max / 2 - strlen(options) / 2, "%s", options);
       wrefresh(header);
-      // left_pane
-      // mvwprintw(left_pane, 0, 1, "%s", todos);
 
       noecho();
       cbreak();
-      break;
-    case 'c':
-    case 'C':
-      if (!list_current.len)
-        break;
-      show_completed = !show_completed;
-      if (show_completed) {
-        copy_todos_completed(&list_todos, &list_current);
-        selected_todo = 0;
-      } else {
-        copy_todos(&list_todos, &list_current);
-      }
       break;
     case 'd':
     case 'D':
@@ -231,6 +308,48 @@ int main(void) {
       delete_todo(db, ((todo_t *)list_current.array[selected_todo])->Id);
       list_remove(&list_current, selected_todo, NULL);
       list_remove(&list_todos, selected_todo, free_todo);
+      break;
+    case 'e':
+    case 'E':
+      clear();
+      echo();
+      nocbreak();
+      input_box = create_window_box(4, head_x_max, head_y_max + 1, 1);
+      refresh();
+      get_todo_data(input_box, name, description, completed);
+
+      // Adding todo...
+      // TODO: Change edited todo database and list
+
+      todo_t *todo = (todo_t *)list_current.array[selected_todo];
+      strncpy(todo->Title, name, 128);
+      strncpy(todo->Description, description, 256);
+      todo->Completed = completed[0] == 'y' || completed[0] == 'Y';
+
+      // Destroy input box and clear screen.
+      delwin(input_box);
+      clear();
+      refresh();
+
+      // Header
+      box(header, 0, 0);
+      mvwprintw(header, 1, head_x_max / 2 - strlen(title) / 2, "%s", title);
+      mvwprintw(header, 3, head_x_max / 2 - strlen(options) / 2, "%s", options);
+      wrefresh(header);
+
+      noecho();
+      cbreak();
+      break;
+
+    case 'c':
+    case 'C':
+      show_completed = !show_completed;
+      if (show_completed) {
+        copy_todos_completed(&list_todos, &list_current);
+        selected_todo = 0;
+      } else {
+        copy_todos(&list_todos, &list_current);
+      }
       break;
     case 'q':
     case 'Q':
