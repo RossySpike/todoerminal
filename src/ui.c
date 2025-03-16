@@ -217,11 +217,6 @@ int main(void) {
                                  head_y_max + 1, x_max / 2 + 1);
 
   keypad(left_pane, true);
-
-  keypad(left_pane, true);
-  if (nodelay(left_pane, true) == ERR) {
-    printf("[-] There\'s a problem.\n");
-  }
   noecho();
   cbreak();
   curs_set(0);
@@ -246,7 +241,12 @@ int main(void) {
     }
 
     wrefresh(right_pane);
+    nodelay(left_pane, false);
+
     input_key = wgetch(left_pane);
+    if (nodelay(left_pane, true) == ERR) {
+      printf("[-] There\'s a problem.\n");
+    }
     if (list_todos.len)
       show_hovered_todo(right_pane, list_current.array[selected_todo]);
 
