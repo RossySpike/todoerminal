@@ -239,6 +239,8 @@ int main(void) {
       wattroff(left_pane, A_REVERSE);
       current_y++;
     }
+    if (selected_todo < list_current.len)
+      show_hovered_todo(right_pane, list_current.array[selected_todo]);
 
     wrefresh(right_pane);
     nodelay(left_pane, false);
@@ -247,9 +249,6 @@ int main(void) {
     if (nodelay(left_pane, true) == ERR) {
       printf("[-] There\'s a problem.\n");
     }
-    if (list_todos.len)
-      show_hovered_todo(right_pane, list_current.array[selected_todo]);
-
     switch (input_key) {
     case KEY_UP:
       selected_todo--;
@@ -305,6 +304,8 @@ int main(void) {
     case 'D':
       if (!list_current.len)
         break;
+      clear_previous(right_pane);
+
       delete_todo(db, ((todo_t *)list_current.array[selected_todo])->Id);
       list_remove(&list_current, selected_todo, NULL);
       list_remove(&list_todos, selected_todo, free_todo);
@@ -346,7 +347,7 @@ int main(void) {
       show_completed = !show_completed;
       if (show_completed) {
         copy_todos_completed(&list_todos, &list_current);
-        selected_todo = 0;
+        selected_todo = list_current.len - 1;
       } else {
         copy_todos(&list_todos, &list_current);
       }
