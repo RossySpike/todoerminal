@@ -1,2 +1,2 @@
-ui:
-	gcc src/ui.c -o ui.out -lncurses -lsqlite3 -g
+main:
+	gcc src/main.c -o main.out -lncurses -lsqlite3 -g
