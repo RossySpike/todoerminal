@@ -2,7 +2,7 @@
 
 int main(void) {
   char name[128], description[256], completed[2];
-  int y_max, x_max, head_y_max, head_x_max, selected_todo;
+  int head_y_max, head_x_max, selected_todo;
 
   bool show_completed, exit;
   show_completed = exit = false;
@@ -20,7 +20,6 @@ int main(void) {
 
   initscr();
 
-  getmaxyx(stdscr, y_max, x_max);
   WINDOW *header, *left_pane, *right_pane;
   header = left_pane = right_pane = NULL;
 
@@ -97,6 +96,8 @@ int main(void) {
       break;
     case 'e':
     case 'E':
+      if (!list_current.len)
+        break;
       get_action(left_pane, right_pane, header,
                  list_current.array[selected_todo], head_x_max, head_y_max,
                  list_current, selected_todo);

@@ -87,8 +87,7 @@ void print_characters(WINDOW *pane, int max_x, int *current_x, int *current_y,
 }
 void show_hovered_todo(WINDOW *pane, todo_t *t) {
   clear_previous(pane);
-  int max_y, max_x;
-  getmaxyx(pane, max_y, max_x);
+  int max_x = getmaxx(pane);
   int current_y = 1;
   int current_x = 1;
 
@@ -119,8 +118,7 @@ void show_hovered_todo(WINDOW *pane, todo_t *t) {
 void show_editing_actions(WINDOW *pane, todo_t *t) {
 
   clear_previous(pane);
-  int max_y, max_x;
-  getmaxyx(pane, max_y, max_x);
+  int max_x = getmaxx(pane);
   int current_y = 1;
   int current_x = 1;
 
@@ -270,9 +268,9 @@ WINDOW *create_header(void) {
   return header;
 }
 WINDOW *create_left_pane(WINDOW *header) {
-  int y_max, x_max, head_y_max, head_x_max;
+  int y_max, x_max, head_y_max;
   getmaxyx(stdscr, y_max, x_max);
-  getmaxyx(header, head_y_max, head_x_max);
+  head_y_max = getmaxy(header);
   return create_window_box(y_max - head_y_max - 1, x_max / 2 - 2,
                            head_y_max + 1, 1);
 }
@@ -335,7 +333,6 @@ void get_action(WINDOW *input_pane, WINDOW *edit_pane, WINDOW *header,
                 list_t list_current, int selected_todo) {
   bool exit = false;
   int input_key;
-  WINDOW *input_box = create_window_box(4, head_x_max, head_y_max + 1, 1);
   while (!exit) {
     show_editing_actions(edit_pane, todo);
     wrefresh(edit_pane);
